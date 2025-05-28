@@ -2,18 +2,120 @@
 const socket=io()
 // connect to backend
 const chess=new Chess()
+const boardElement=document.querySelector('.chessboard')
 
-socket.emit("w")
-// sending to backend the biryani
+let draggedPiece=null;
+let sourceSquare=null;
+let playerRole=null;
 
-socket.on("w",()=>{
-    //  all receving from backend
-    console.log("You are white")
+const renderBoard=()=>{
+       const board=chess.board();
+       boardElement.innerHTML="";
+       console.log(board)
+       board.forEach((row,rowIndex)=>
+             row.forEach((square,squareIndex)=>{
+                 const squareElement=document.createElement("div");
+
+                // bg- colors on board 
+                 squareElement.classList.add("square",
+                    (rowIndex +squareIndex )%2 ===0 ?"light":'dark'
+                 );
+
+                 squareElement.dataset.row=rowIndex;
+                 squareElement.dataset.col=squareIndex;
+
+                 if(square){
+                    const pieceElement=document.createElement("div");
+                    // for the element colors
+                    pieceElement.classList.add("piece", square.color==='w'? "white" : "black" )
+                    // diff pieces of chessboard
+                    pieceElement.innerText=getPieceUniCode(square);
+                    pieceElement.draggable=playerRole===square.color;
+
+                    pieceElement.addEventListener("dragstart",(e)=>{
+                        if(pieceElement.draggable){
+                            draggedPiece=pieceElement;
+                            sourceSquare={row:rowIndex,col:squareIndex};
+                            e.dataTransfer.setData('text/plain',"")
+                            // no problem when we drag them
+
+                        }
+                    })
+                    pieceElement.addEventListener('dragend',(e)=>{
+                        {
+                            draggedPiece=null;
+                            sourceSquare=null;
+                        }
+                    })
+                    squareElement.appendChild(pieceElement);
+                    // now  we attached the piece to the square
+
+
+                 }
+
+                 squareElement.addEventListener("dragover",(e)=>{
+                    e.preventDefault();
+                 })
+
+                 squareElement.addEventListener("drop",(e)=>{
+                       e.preventDefault();
+                       if(draggedPiece){
+                        const targetSource={
+                            row:parseInt(squareElement.dataset.row),
+                            col:parseInt(squareElement.dataset.col)
+                        }
+                        handleMove(sourceSquare,targetSource)
+                       }
+                 })
+                 boardElement.appendChild(squareElement)
+             })
+    )
+    
+
+
+};
+const handleMove=(source,target)=>{
+    const move={
+        from:`${String.fromCharCode(97+source.col)}${8-source.row}`,
+        to:`${String.fromCharCode(97+target.col)}${8-target.row}`,
+        promotion:'q'
+    };
+
+    socket.emit("move",move)
+     
+};
+const getPieceUniCode=(piece)=>{
+    const unicodePieces={
+        p:"♟",
+        r:"♜",
+        n:"♞",
+        b:"♝",
+        q:"♛",
+        k:"♚",
+        P:"♙",
+        R:"♖",
+        N:"♘",
+        B:"♗",
+        Q:"♕",
+        K:"♔",
+    }
+    return unicodePieces[piece.type] || "";
+     
+}
+
+socket.on("playerRole",(role)=>{
+    playerRole=role;
+    renderBoard()
 })
-
-socket.emit("b")
-
-socket.on("b",()=>{
-    //  all receving from backend
-    console.log("You are black")
+socket.on("spectatorRole",()=>{
+    playerRole=null;
+    renderBoard();
+})
+socket.on("boardState",(fen)=>{
+   chess.load(fen);
+   renderBoard();
+})
+socket.on("move",(move)=>{
+   chess.move(move);
+   renderBoard();
 })
